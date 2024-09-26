@@ -10,6 +10,8 @@ import {
 } from '@comfyorg/litegraph'
 
 const ORDER: symbol = Symbol()
+const PREFIX = 'workflow'
+const SEPARATOR = '>'
 
 function merge(target, source) {
   if (typeof target === 'object' && typeof source === 'object') {
@@ -102,7 +104,9 @@ export class ManageGroupDialog extends ComfyDialog<HTMLDialogElement> {
 
   getGroupData() {
     this.groupNodeType =
-      LiteGraph.registered_node_types['workflow/' + this.selectedGroup]
+      LiteGraph.registered_node_types[
+        `${PREFIX}${SEPARATOR}` + this.selectedGroup
+      ]
     this.groupNodeDef = this.groupNodeType.nodeData
     this.groupData = GroupNodeHandler.getGroupData(this.groupNodeType)
   }
@@ -367,7 +371,7 @@ export class ManageGroupDialog extends ComfyDialog<HTMLDialogElement> {
           groupNodes.map((g) =>
             $el('option', {
               textContent: g,
-              selected: 'workflow/' + g === type,
+              selected: `${PREFIX}${SEPARATOR}` + g === type,
               value: g
             })
           )
@@ -388,9 +392,8 @@ export class ManageGroupDialog extends ComfyDialog<HTMLDialogElement> {
           'button.comfy-btn',
           {
             onclick: (e) => {
-              // @ts-expect-error
-              const node = app.graph._nodes.find(
-                (n) => n.type === 'workflow/' + this.selectedGroup
+              const node = app.graph.nodes.find(
+                (n) => n.type === `${PREFIX}${SEPARATOR}` + this.selectedGroup
               )
               if (node) {
                 alert(
@@ -404,7 +407,9 @@ export class ManageGroupDialog extends ComfyDialog<HTMLDialogElement> {
                 )
               ) {
                 delete app.graph.extra.groupNodes[this.selectedGroup]
-                LiteGraph.unregisterNodeType('workflow/' + this.selectedGroup)
+                LiteGraph.unregisterNodeType(
+                  `${PREFIX}${SEPARATOR}` + this.selectedGroup
+                )
               }
               this.show()
             }
@@ -470,15 +475,14 @@ export class ManageGroupDialog extends ComfyDialog<HTMLDialogElement> {
                 types[g] = type
 
                 if (!nodesByType) {
-                  // @ts-expect-error
-                  nodesByType = app.graph._nodes.reduce((p, n) => {
+                  nodesByType = app.graph.nodes.reduce((p, n) => {
                     p[n.type] ??= []
                     p[n.type].push(n)
                     return p
                   }, {})
                 }
 
-                const nodes = nodesByType['workflow/' + g]
+                const nodes = nodesByType[`${PREFIX}${SEPARATOR}` + g]
                 if (nodes) recreateNodes.push(...nodes)
               }
 
@@ -505,7 +509,9 @@ export class ManageGroupDialog extends ComfyDialog<HTMLDialogElement> {
 
     this.element.replaceChildren(outer)
     this.changeGroup(
-      type ? groupNodes.find((g) => 'workflow/' + g === type) : groupNodes[0]
+      type
+        ? groupNodes.find((g) => `${PREFIX}${SEPARATOR}` + g === type)
+        : groupNodes[0]
     )
     this.element.showModal()
 

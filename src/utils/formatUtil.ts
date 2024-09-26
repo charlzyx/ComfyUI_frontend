@@ -22,3 +22,52 @@ export function formatCamelCase(str: string): string {
   // Join the words with spaces
   return processedWords.join(' ')
 }
+
+export function appendJsonExt(path: string) {
+  if (!path.toLowerCase().endsWith('.json')) {
+    path += '.json'
+  }
+  return path
+}
+
+export function trimJsonExt(path?: string) {
+  return path?.replace(/\.json$/, '')
+}
+
+export function highlightQuery(text: string, query: string) {
+  if (!query) return text
+  const regex = new RegExp(`(${query})`, 'gi')
+  return text.replace(regex, '<span class="highlight">$1</span>')
+}
+
+export function formatNumberWithSuffix(
+  num: number,
+  {
+    precision = 1,
+    roundToInt = false
+  }: { precision?: number; roundToInt?: boolean } = {}
+): string {
+  const suffixes = ['', 'k', 'm', 'b', 't']
+  const absNum = Math.abs(num)
+
+  if (absNum < 1000) {
+    return roundToInt ? Math.round(num).toString() : num.toFixed(precision)
+  }
+
+  const exp = Math.min(Math.floor(Math.log10(absNum) / 3), suffixes.length - 1)
+  const formattedNum = (num / Math.pow(1000, exp)).toFixed(precision)
+
+  return `${formattedNum}${suffixes[exp]}`
+}
+
+export function formatMemory(value?: number) {
+  if (value === null || value === undefined) {
+    return '-'
+  }
+
+  const mb = Math.round(value / (1024 * 1024))
+  if (mb >= 1024) {
+    return `${(mb / 1024).toFixed(2)} GB`
+  }
+  return `${mb} MB`
+}

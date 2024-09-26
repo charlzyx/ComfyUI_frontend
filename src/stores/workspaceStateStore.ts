@@ -1,6 +1,8 @@
-import { SidebarTabExtension, ToastManager } from '@/types/extensionTypes'
+import type { SidebarTabExtension, ToastManager } from '@/types/extensionTypes'
 import { defineStore } from 'pinia'
 import { useToastStore } from './toastStore'
+import { useQueueSettingsStore } from './queueStore'
+import { useMenuItemStore } from './menuItemStore'
 
 interface WorkspaceState {
   spinner: boolean
@@ -17,6 +19,14 @@ export const useWorkspaceStore = defineStore('workspace', {
   getters: {
     toast(): ToastManager {
       return useToastStore()
+    },
+    queueSettings() {
+      return useQueueSettingsStore()
+    },
+    menu() {
+      return {
+        registerTopbarCommands: useMenuItemStore().registerCommands
+      }
     }
   },
   actions: {

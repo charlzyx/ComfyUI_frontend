@@ -1,3 +1,4 @@
+import { createPinia, setActivePinia } from 'pinia'
 import {
   start,
   createDefaultWorkflow,
@@ -45,7 +46,7 @@ describe('group node', () => {
       expect(n.isRemoved).toBeTruthy()
     }
 
-    expect(groupNode.type).toEqual('workflow/' + name)
+    expect(groupNode.type).toEqual('workflow>' + name)
 
     return graph.find(groupNode)
   }
@@ -517,9 +518,9 @@ describe('group node', () => {
       vaeReroute
     ])
     group1.menu.Clone.call()
-    expect(app.graph._nodes).toHaveLength(4)
-    const group2 = graph.find(app.graph._nodes[3])
-    expect(group2.node.type).toEqual('workflow/test')
+    expect(app.graph.nodes).toHaveLength(4)
+    const group2 = graph.find(app.graph.nodes[3])
+    expect(group2.node.type).toEqual('workflow>test')
     expect(group2.id).not.toEqual(group1.id)
 
     group1.outputs.VAE.connectTo(group2.inputs.VAE)
@@ -572,7 +573,6 @@ describe('group node', () => {
       new CustomEvent('executing', { detail: `${nodes.save.id}` })
     )
     // Event should be forwarded to group node id
-    expect(+app.runningNodeId).toEqual(group.id)
     expect(group.node['imgs']).toBeFalsy()
     api.dispatchEvent(
       new CustomEvent('executed', {
@@ -613,7 +613,6 @@ describe('group node', () => {
     api.dispatchEvent(new CustomEvent('execution_start', {}))
     api.dispatchEvent(new CustomEvent('executing', { detail: `${group.id}:5` }))
     // Event should be forwarded to group node id
-    expect(+app.runningNodeId).toEqual(group.id)
     expect(group.node['imgs']).toBeFalsy()
     api.dispatchEvent(
       new CustomEvent('executed', {
@@ -680,9 +679,9 @@ describe('group node', () => {
 
     // Clone the node
     group1.menu.Clone.call()
-    expect(app.graph._nodes).toHaveLength(3)
-    const group2 = graph.find(app.graph._nodes[2])
-    expect(group2.node.type).toEqual('workflow/test')
+    expect(app.graph.nodes).toHaveLength(3)
+    const group2 = graph.find(app.graph.nodes[2])
+    expect(group2.node.type).toEqual('workflow>test')
     expect(group2.id).not.toEqual(group1.id)
 
     // Reconnect ckpt
@@ -742,7 +741,7 @@ describe('group node', () => {
       resetEnv: true
     }))
     // Ensure the node isnt registered
-    expect(() => ez['workflow/test']).toThrow()
+    expect(() => ez['workflow>test']).toThrow()
 
     // Reload the workflow
     await app.loadGraphData(JSON.parse(workflow))
@@ -769,7 +768,7 @@ describe('group node', () => {
       nodes: [
         {
           id: 3,
-          type: 'workflow/testerror'
+          type: 'workflow>testerror'
         }
       ],
       links: [],
@@ -797,7 +796,7 @@ describe('group node', () => {
     expect(call).toContain('the following node types were not found')
     expect(call).toContain('NotKSampler')
     expect(call).toContain('NotVAEDecode')
-    expect(call).toContain('workflow/testerror')
+    expect(call).toContain('workflow>testerror')
   })
   test('maintains widget inputs on conversion back to nodes', async () => {
     const { ez, graph, app } = await start()

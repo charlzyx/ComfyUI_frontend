@@ -3,7 +3,7 @@ import { comfyPageFixture as test } from './ComfyPage'
 
 test.describe('Menu', () => {
   test.beforeEach(async ({ comfyPage }) => {
-    await comfyPage.setSetting('Comfy.UseNewMenu', 'Top')
+    await comfyPage.setSetting('Comfy.UseNewMenu', 'Floating')
   })
 
   test.afterEach(async ({ comfyPage }) => {
@@ -85,7 +85,21 @@ test.describe('Menu', () => {
       const count = await comfyPage.getGraphNodesCount()
       // Drag the node onto the canvas
       const canvasSelector = '#graph-canvas'
-      await comfyPage.page.dragAndDrop(nodeSelector, canvasSelector)
+
+      // Get the bounding box of the canvas element
+      const canvasBoundingBox = (await comfyPage.page
+        .locator(canvasSelector)
+        .boundingBox())!
+
+      // Calculate the center position of the canvas
+      const targetPosition = {
+        x: canvasBoundingBox.x + canvasBoundingBox.width / 2,
+        y: canvasBoundingBox.y + canvasBoundingBox.height / 2
+      }
+
+      await comfyPage.page.dragAndDrop(nodeSelector, canvasSelector, {
+        targetPosition
+      })
 
       // Verify the node is added to the canvas
       expect(await comfyPage.getGraphNodesCount()).toBe(count + 1)
@@ -171,7 +185,9 @@ test.describe('Menu', () => {
       const tab = comfyPage.menu.nodeLibraryTab
 
       await tab.getFolder('foo').click({ button: 'right' })
-      await comfyPage.page.getByLabel('Rename').click()
+      await comfyPage.page
+        .locator('.p-contextmenu-item-label:has-text("Rename")')
+        .click()
       await comfyPage.page.keyboard.insertText('bar')
       await comfyPage.page.keyboard.press('Enter')
 
@@ -291,7 +307,9 @@ test.describe('Menu', () => {
       })
       const tab = comfyPage.menu.nodeLibraryTab
       await tab.getFolder('foo').click({ button: 'right' })
-      await comfyPage.page.getByLabel('Rename').click()
+      await comfyPage.page
+        .locator('.p-contextmenu-item-label:has-text("Rename")')
+        .click()
       await comfyPage.page.keyboard.insertText('bar')
       await comfyPage.page.keyboard.press('Enter')
       await comfyPage.nextFrame()
@@ -358,6 +376,100 @@ test.describe('Menu', () => {
       expect(
         await comfyPage.getSetting('Comfy.NodeLibrary.Bookmarks.V2')
       ).toEqual(['foo/', 'foo/KSamplerAdvanced', 'KSampler'])
+    })
+  })
+
+  test.describe('Workflows sidebar', () => {
+    test.beforeEach(async ({ comfyPage }) => {
+      await comfyPage.setSetting(
+        'Comfy.Workflow.WorkflowTabsPosition',
+        'Sidebar'
+      )
+
+      // Open the sidebar
+      const tab = comfyPage.menu.workflowsTab
+      await tab.open()
+    })
+
+    test('Can create new blank workflow', async ({ comfyPage }) => {
+      const tab = comfyPage.menu.workflowsTab
+      expect(await tab.getOpenedWorkflowNames()).toEqual([
+        '*Unsaved Workflow.json'
+      ])
+
+      await tab.newBlankWorkflowButton.click()
+      expect(await tab.getOpenedWorkflowNames()).toEqual([
+        '*Unsaved Workflow.json',
+        '*Unsaved Workflow (2).json'
+      ])
+    })
+
+    test('Can show top level saved workflows', async ({ comfyPage }) => {
+      await comfyPage.setupWorkflowsDirectory({
+        'workflow1.json': 'default.json',
+        'workflow2.json': 'default.json'
+      })
+      // Avoid reset view as the button is not visible in BetaMenu UI.
+      await comfyPage.setup({ resetView: false })
+
+      const tab = comfyPage.menu.workflowsTab
+      await tab.open()
+      expect(await tab.getTopLevelSavedWorkflowNames()).toEqual([
+        'workflow1.json',
+        'workflow2.json'
+      ])
+    })
+
+    test('Does not report warning when switching between opened workflows', async ({
+      comfyPage
+    }) => {
+      await comfyPage.loadWorkflow('missing_nodes')
+      await comfyPage.closeDialog()
+
+      // Load default workflow
+      await comfyPage.menu.workflowsTab.open()
+      await comfyPage.menu.workflowsTab.newDefaultWorkflowButton.click()
+
+      // Switch back to the missing_nodes workflow
+      await comfyPage.menu.workflowsTab.switchToWorkflow('missing_nodes')
+
+      await expect(
+        comfyPage.page.locator('.comfy-missing-nodes')
+      ).not.toBeVisible()
+    })
+  })
+
+  test.describe('Workflows topbar tabs', () => {
+    test.beforeEach(async ({ comfyPage }) => {
+      await comfyPage.setSetting(
+        'Comfy.Workflow.WorkflowTabsPosition',
+        'Topbar'
+      )
+    })
+
+    test('Can show opened workflows', async ({ comfyPage }) => {
+      expect(await comfyPage.menu.topbar.getTabNames()).toEqual([
+        'Unsaved Workflow'
+      ])
+    })
+  })
+
+  // Only test 'Top' to reduce test time.
+  // ['Bottom', 'Top']
+  ;['Top'].forEach(async (position) => {
+    test(`Can migrate deprecated menu positions (${position})`, async ({
+      comfyPage
+    }) => {
+      await comfyPage.setSetting('Comfy.UseNewMenu', position)
+      expect(await comfyPage.getSetting('Comfy.UseNewMenu')).toBe('Floating')
+    })
+
+    test(`Can migrate deprecated menu positions on initial load (${position})`, async ({
+      comfyPage
+    }) => {
+      await comfyPage.setSetting('Comfy.UseNewMenu', position)
+      await comfyPage.setup()
+      expect(await comfyPage.getSetting('Comfy.UseNewMenu')).toBe('Floating')
     })
   })
 

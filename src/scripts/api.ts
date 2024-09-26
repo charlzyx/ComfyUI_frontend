@@ -11,7 +11,8 @@ import {
   PromptResponse,
   SystemStats,
   User,
-  Settings
+  Settings,
+  UserDataFullInfo
 } from '@/types/apiTypes'
 import axios from 'axios'
 
@@ -44,6 +45,7 @@ class ComfyApi extends EventTarget {
     super()
     this.api_host = location.host
     this.api_base = location.pathname.split('/').slice(0, -1).join('/')
+    console.log('Running on', this.api_host)
     this.initialClientId = sessionStorage.getItem('clientId')
   }
 
@@ -331,6 +333,18 @@ class ComfyApi extends EventTarget {
   }
 
   /**
+   * Gets a list of model folder keys (eg ['checkpoints', 'loras', ...])
+   * @returns The list of model folder keys
+   */
+  async getModelFolders(): Promise<string[]> {
+    const res = await this.fetchApi(`/models`)
+    if (res.status === 404) {
+      return null
+    }
+    return await res.json()
+  }
+
+  /**
    * Gets a list of models in the specified folder
    * @param {string} folder The folder to list models from, such as 'checkpoints'
    * @returns The list of model filenames within the specified folder
@@ -344,6 +358,34 @@ class ComfyApi extends EventTarget {
   }
 
   /**
+   * Gets the metadata for a model
+   * @param {string} folder The folder containing the model
+   * @param {string} model The model to get metadata for
+   * @returns The metadata for the model
+   */
+  async viewMetadata(folder: string, model: string) {
+    const res = await this.fetchApi(
+      `/view_metadata/${folder}?filename=${encodeURIComponent(model)}`
+    )
+    const rawResponse = await res.text()
+    if (!rawResponse) {
+      return null
+    }
+    try {
+      return JSON.parse(rawResponse)
+    } catch (error) {
+      console.error(
+        'Error viewing metadata',
+        res.status,
+        res.statusText,
+        rawResponse,
+        error
+      )
+      return null
+    }
+  }
+
+  /**
    * Tells the server to download a model from the specified URL to the specified directory and filename
    * @param {string} url The URL to download the model from
    * @param {string} model_directory The main directory (eg 'checkpoints') to save the model to
@@ -354,7 +396,8 @@ class ComfyApi extends EventTarget {
     url: string,
     model_directory: string,
     model_filename: string,
-    progress_interval: number
+    progress_interval: number,
+    folder_path: string
   ): Promise<DownloadModelStatus> {
     const res = await this.fetchApi('/internal/models/download', {
       method: 'POST',
@@ -365,7 +408,8 @@ class ComfyApi extends EventTarget {
         url,
         model_directory,
         model_filename,
-        progress_interval
+        progress_interval,
+        folder_path
       })
     })
     return await res.json()
@@ -658,8 +702,25 @@ class ComfyApi extends EventTarget {
     return resp.json()
   }
 
+  async listUserDataFullInfo(dir: string): Promise<UserDataFullInfo[]> {
+    const resp = await this.fetchApi(
+      `/userdata?dir=${encodeURIComponent(dir)}&recurse=true&split=false&full_info=true`
+    )
+    if (resp.status === 404) return []
+    if (resp.status !== 200) {
+      throw new Error(
+        `Error getting user data list '${dir}': ${resp.status} ${resp.statusText}`
+      )
+    }
+    return resp.json()
+  }
+
   async getLogs(): Promise<string> {
     return (await axios.get(this.internalURL('/logs'))).data
+  }
+
+  async getFolderPaths(): Promise<Record<string, string[]>> {
+    return (await axios.get(this.internalURL('/folder_paths'))).data
   }
 }
 

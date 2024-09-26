@@ -24,16 +24,56 @@ test.describe('Node Interaction', () => {
     await expect(comfyPage.canvas).toHaveScreenshot('dragged-node1.png')
   })
 
-  test('Can disconnect/connect edge', async ({ comfyPage }) => {
-    await comfyPage.setSetting('Comfy.LinkRelease.Action', 'no action')
-    await comfyPage.disconnectEdge()
-    await expect(comfyPage.canvas).toHaveScreenshot(
-      'disconnected-edge-with-menu.png'
-    )
-    await comfyPage.connectEdge()
-    // Litegraph renders edge with a slight offset.
-    await expect(comfyPage.canvas).toHaveScreenshot('default.png', {
-      maxDiffPixels: 50
+  test.describe('Edge Interaction', () => {
+    test.beforeEach(async ({ comfyPage }) => {
+      await comfyPage.setSetting('Comfy.LinkRelease.Action', 'no action')
+      await comfyPage.setSetting('Comfy.LinkRelease.ActionShift', 'no action')
+    })
+
+    test('Can disconnect/connect edge', async ({ comfyPage }) => {
+      await comfyPage.disconnectEdge()
+      await expect(comfyPage.canvas).toHaveScreenshot('disconnected-edge.png')
+      await comfyPage.connectEdge()
+      // Litegraph renders edge with a slight offset.
+      await expect(comfyPage.canvas).toHaveScreenshot('default.png', {
+        maxDiffPixels: 50
+      })
+    })
+
+    // Chromium 2x cannot move link.
+    // See https://github.com/Comfy-Org/ComfyUI_frontend/actions/runs/10876381315/job/30176211513
+    test.skip('Can move link', async ({ comfyPage }) => {
+      await comfyPage.dragAndDrop(
+        comfyPage.clipTextEncodeNode1InputSlot,
+        comfyPage.emptySpace
+      )
+      await expect(comfyPage.canvas).toHaveScreenshot('disconnected-edge.png')
+      await comfyPage.dragAndDrop(
+        comfyPage.clipTextEncodeNode2InputSlot,
+        comfyPage.clipTextEncodeNode1InputSlot
+      )
+      await expect(comfyPage.canvas).toHaveScreenshot('moved-link.png')
+    })
+
+    // Copy link is not working on CI at all
+    // Chromium 2x recognize it as dragging canvas.
+    // Chromium triggers search box after link release. The link is indeed copied.
+    // See https://github.com/Comfy-Org/ComfyUI_frontend/actions/runs/10876381315/job/30176211513
+    test.skip('Can copy link by shift-drag existing link', async ({
+      comfyPage
+    }) => {
+      await comfyPage.dragAndDrop(
+        comfyPage.clipTextEncodeNode1InputSlot,
+        comfyPage.emptySpace
+      )
+      await expect(comfyPage.canvas).toHaveScreenshot('disconnected-edge.png')
+      await comfyPage.page.keyboard.down('Shift')
+      await comfyPage.dragAndDrop(
+        comfyPage.clipTextEncodeNode2InputLinkPath,
+        comfyPage.clipTextEncodeNode1InputSlot
+      )
+      await comfyPage.page.keyboard.up('Shift')
+      await expect(comfyPage.canvas).toHaveScreenshot('copied-link.png')
     })
   })
 
@@ -111,12 +151,15 @@ test.describe('Node Interaction', () => {
     )
   })
 
-  test('Can close prompt dialog with canvas click', async ({ comfyPage }) => {
+  test('Can close prompt dialog with canvas click (number widget)', async ({
+    comfyPage
+  }) => {
+    const numberWidgetPos = {
+      x: 724,
+      y: 645
+    }
     await comfyPage.canvas.click({
-      position: {
-        x: 724,
-        y: 645
-      }
+      position: numberWidgetPos
     })
     await expect(comfyPage.canvas).toHaveScreenshot('prompt-dialog-opened.png')
     // Wait for 1s so that it does not trigger the search box by double click.
@@ -128,6 +171,32 @@ test.describe('Node Interaction', () => {
       }
     })
     await expect(comfyPage.canvas).toHaveScreenshot('prompt-dialog-closed.png')
+  })
+
+  test('Can close prompt dialog with canvas click (text widget)', async ({
+    comfyPage
+  }) => {
+    const textWidgetPos = {
+      x: 167,
+      y: 143
+    }
+    await comfyPage.loadWorkflow('single_save_image_node')
+    await comfyPage.canvas.click({
+      position: textWidgetPos
+    })
+    await expect(comfyPage.canvas).toHaveScreenshot(
+      'prompt-dialog-opened-text.png'
+    )
+    await comfyPage.page.waitForTimeout(1000)
+    await comfyPage.canvas.click({
+      position: {
+        x: 10,
+        y: 10
+      }
+    })
+    await expect(comfyPage.canvas).toHaveScreenshot(
+      'prompt-dialog-closed-text.png'
+    )
   })
 
   test('Can double click node title to edit', async ({ comfyPage }) => {
@@ -167,6 +236,32 @@ test.describe('Node Interaction', () => {
     await comfyPage.page.keyboard.press('Enter')
     await comfyPage.nextFrame()
     await expect(comfyPage.canvas).toHaveScreenshot('group-selected-nodes.png')
+  })
+
+  // Somehow this test fails on GitHub Actions. It works locally.
+  // https://github.com/Comfy-Org/ComfyUI_frontend/pull/736
+  test.skip('Can pin/unpin nodes with keyboard shortcut', async ({
+    comfyPage
+  }) => {
+    await comfyPage.select2Nodes()
+    await comfyPage.canvas.press('KeyP')
+    await comfyPage.nextFrame()
+    await expect(comfyPage.canvas).toHaveScreenshot('nodes-pinned.png')
+    await comfyPage.canvas.press('KeyP')
+    await comfyPage.nextFrame()
+    await expect(comfyPage.canvas).toHaveScreenshot('nodes-unpinned.png')
+  })
+
+  test('Can bypass/unbypass nodes with keyboard shortcut', async ({
+    comfyPage
+  }) => {
+    await comfyPage.select2Nodes()
+    await comfyPage.canvas.press('Control+b')
+    await comfyPage.nextFrame()
+    await expect(comfyPage.canvas).toHaveScreenshot('nodes-bypassed.png')
+    await comfyPage.canvas.press('Control+b')
+    await comfyPage.nextFrame()
+    await expect(comfyPage.canvas).toHaveScreenshot('nodes-unbypassed.png')
   })
 })
 
@@ -267,6 +362,12 @@ test.describe('Canvas Interaction', () => {
     await comfyPage.pan({ x: 800, y: 300 }, { x: 1000, y: 10 })
     await expect(comfyPage.canvas).toHaveScreenshot('panned-back-to-one.png')
   })
+
+  test('@mobile Can pan with touch', async ({ comfyPage }) => {
+    await comfyPage.closeMenu()
+    await comfyPage.panWithTouch({ x: 200, y: 200 })
+    await expect(comfyPage.canvas).toHaveScreenshot('panned-touch.png')
+  })
 })
 
 test.describe('Widget Interaction', () => {
@@ -292,5 +393,32 @@ test.describe('Widget Interaction', () => {
     await expect(textBox).toHaveValue('(1girl:1.05)')
     await comfyPage.ctrlZ()
     await expect(textBox).toHaveValue('1girl')
+  })
+})
+
+test.describe('Load workflow', () => {
+  test('Can load workflow with string node id', async ({ comfyPage }) => {
+    await comfyPage.loadWorkflow('string_node_id')
+    await expect(comfyPage.canvas).toHaveScreenshot('string_node_id.png')
+  })
+})
+
+test.describe('Load duplicate workflow', () => {
+  test.beforeEach(async ({ comfyPage }) => {
+    await comfyPage.setSetting('Comfy.UseNewMenu', 'Floating')
+  })
+
+  test.afterEach(async ({ comfyPage }) => {
+    await comfyPage.setSetting('Comfy.UseNewMenu', 'Disabled')
+  })
+
+  test('A workflow can be loaded multiple times in a row', async ({
+    comfyPage
+  }) => {
+    await comfyPage.loadWorkflow('single_ksampler')
+    await comfyPage.menu.workflowsTab.open()
+    await comfyPage.menu.workflowsTab.newBlankWorkflowButton.click()
+    await comfyPage.loadWorkflow('single_ksampler')
+    expect(await comfyPage.getGraphNodesCount()).toBe(1)
   })
 })

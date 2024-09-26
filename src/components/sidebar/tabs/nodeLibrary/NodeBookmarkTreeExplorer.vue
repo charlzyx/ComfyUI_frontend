@@ -4,8 +4,6 @@
     ref="treeExplorerRef"
     :roots="renderedBookmarkedRoot.children"
     :expandedKeys="expandedKeys"
-    :extraMenuItems="extraMenuItems"
-    @nodeClick="handleNodeClick"
   >
     <template #folder="{ node }">
       <NodeTreeFolder :node="node" />
@@ -36,29 +34,19 @@ import type {
   TreeExplorerNode
 } from '@/types/treeExplorerTypes'
 import type { TreeNode } from 'primevue/treenode'
-import { useToast } from 'primevue/usetoast'
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useTreeExpansion } from '@/hooks/treeHooks'
 import { app } from '@/scripts/app'
 import { findNodeByKey } from '@/utils/treeUtil'
+import { useErrorHandling } from '@/hooks/errorHooks'
 
 const props = defineProps<{
   filteredNodeDefs: ComfyNodeDefImpl[]
 }>()
 
-const { expandedKeys, expandNode, toggleNodeOnEvent } = useTreeExpansion()
-
-const handleNodeClick = (
-  node: RenderedTreeExplorerNode<ComfyNodeDefImpl>,
-  e: MouseEvent
-) => {
-  if (node.leaf) {
-    app.addNodeOnGraph(node.data, { pos: app.getCanvasCenter() })
-  } else {
-    toggleNodeOnEvent(e, node)
-  }
-}
+const expandedKeys = ref<Record<string, boolean>>({})
+const { expandNode, toggleNodeOnEvent } = useTreeExpansion(expandedKeys)
 
 const nodeBookmarkStore = useNodeBookmarkStore()
 const bookmarkedRoot = computed<TreeNode>(() => {
@@ -100,6 +88,37 @@ watch(
     }
   }
 )
+
+const { t } = useI18n()
+const extraMenuItems = (
+  menuTargetNode: RenderedTreeExplorerNode<ComfyNodeDefImpl>
+) => [
+  {
+    label: t('newFolder'),
+    icon: 'pi pi-folder-plus',
+    command: () => {
+      addNewBookmarkFolder(menuTargetNode)
+    },
+    visible: !menuTargetNode?.leaf
+  },
+  {
+    label: t('customize'),
+    icon: 'pi pi-palette',
+    command: () => {
+      const customization =
+        nodeBookmarkStore.bookmarksCustomization[menuTargetNode.data.nodePath]
+      initialIcon.value =
+        customization?.icon || nodeBookmarkStore.defaultBookmarkIcon
+      initialColor.value =
+        customization?.color || nodeBookmarkStore.defaultBookmarkColor
+
+      showCustomizationDialog.value = true
+      customizationTargetNodePath.value = menuTargetNode.data.nodePath
+    },
+    visible: !menuTargetNode?.leaf
+  }
+]
+
 const renderedBookmarkedRoot = computed<TreeExplorerNode<ComfyNodeDefImpl>>(
   () => {
     const fillNodeInfo = (
@@ -146,6 +165,17 @@ const renderedBookmarkedRoot = computed<TreeExplorerNode<ComfyNodeDefImpl>>(
           const nodePath = folderNodeDef.category + '/' + nodeDefToAdd.name
           nodeBookmarkStore.addBookmark(nodePath)
         },
+        handleClick: (
+          node: RenderedTreeExplorerNode<ComfyNodeDefImpl>,
+          e: MouseEvent
+        ) => {
+          if (node.leaf) {
+            app.addNodeOnGraph(node.data, { pos: app.getCanvasCenter() })
+          } else {
+            toggleNodeOnEvent(e, node)
+          }
+        },
+        contextMenuItems: extraMenuItems,
         ...(node.leaf
           ? {}
           : {
@@ -182,22 +212,13 @@ defineExpose({
   addNewBookmarkFolder
 })
 
-const toast = useToast()
-const { t } = useI18n()
-const handleRename = (node: TreeNode, newName: string) => {
-  if (node.data && node.data.isDummyFolder) {
-    try {
+const handleRename = useErrorHandling().wrapWithErrorHandling(
+  (node: TreeNode, newName: string) => {
+    if (node.data && node.data.isDummyFolder) {
       nodeBookmarkStore.renameBookmarkFolder(node.data, newName)
-    } catch (e) {
-      toast.add({
-        severity: 'error',
-        summary: t('error'),
-        detail: e.message,
-        life: 3000
-      })
     }
   }
-}
+)
 
 const showCustomizationDialog = ref(false)
 const initialIcon = ref(nodeBookmarkStore.defaultBookmarkIcon)
@@ -211,33 +232,4 @@ const updateCustomization = (icon: string, color: string) => {
     )
   }
 }
-
-const extraMenuItems = computed(
-  () => (menuTargetNode: RenderedTreeExplorerNode<ComfyNodeDefImpl>) => [
-    {
-      label: t('newFolder'),
-      icon: 'pi pi-folder-plus',
-      command: () => {
-        addNewBookmarkFolder(menuTargetNode)
-      },
-      visible: !menuTargetNode?.leaf
-    },
-    {
-      label: t('customize'),
-      icon: 'pi pi-palette',
-      command: () => {
-        const customization =
-          nodeBookmarkStore.bookmarksCustomization[menuTargetNode.data.nodePath]
-        initialIcon.value =
-          customization?.icon || nodeBookmarkStore.defaultBookmarkIcon
-        initialColor.value =
-          customization?.color || nodeBookmarkStore.defaultBookmarkColor
-
-        showCustomizationDialog.value = true
-        customizationTargetNodePath.value = menuTargetNode.data.nodePath
-      },
-      visible: !menuTargetNode?.leaf
-    }
-  ]
-)
 </script>

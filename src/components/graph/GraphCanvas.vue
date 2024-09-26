@@ -22,7 +22,11 @@ import { ref, computed, onUnmounted, onMounted, watchEffect } from 'vue'
 import { app as comfyApp } from '@/scripts/app'
 import { useSettingStore } from '@/stores/settingStore'
 import { dropTargetForElements } from '@atlaskit/pragmatic-drag-and-drop/element/adapter'
-import { ComfyNodeDefImpl, useNodeDefStore } from '@/stores/nodeDefStore'
+import {
+  ComfyNodeDefImpl,
+  useNodeDefStore,
+  useNodeFrequencyStore
+} from '@/stores/nodeDefStore'
 import { useWorkspaceStore } from '@/stores/workspaceStateStore'
 import {
   LiteGraph,
@@ -32,11 +36,14 @@ import {
   LGraphGroup,
   DragAndScale,
   LGraphCanvas,
-  ContextMenu
+  ContextMenu,
+  LGraphBadge
 } from '@comfyorg/litegraph'
 import type { RenderedTreeExplorerNode } from '@/types/treeExplorerTypes'
 import { useNodeBookmarkStore } from '@/stores/nodeBookmarkStore'
 import { useCanvasStore } from '@/stores/graphStore'
+import { ComfyModelDef } from '@/stores/modelStore'
+import { useModelToNodeStore } from '@/stores/modelToNodeStore'
 
 const emit = defineEmits(['ready'])
 const canvasRef = ref<HTMLCanvasElement | null>(null)
@@ -44,7 +51,7 @@ const settingStore = useSettingStore()
 const nodeDefStore = useNodeDefStore()
 const workspaceStore = useWorkspaceStore()
 const canvasStore = useCanvasStore()
-
+const modelToNodeStore = useModelToNodeStore()
 const betaMenuEnabled = computed(
   () => settingStore.get('Comfy.UseNewMenu') !== 'Disabled'
 )
@@ -98,6 +105,7 @@ onMounted(async () => {
   window['DragAndScale'] = DragAndScale
   window['LGraphCanvas'] = LGraphCanvas
   window['ContextMenu'] = ContextMenu
+  window['LGraphBadge'] = LGraphBadge
 
   comfyApp.vueAppReady = true
 
@@ -126,6 +134,22 @@ onMounted(async () => {
             loc.clientY
           ])
           comfyApp.addNodeOnGraph(nodeDef, { pos })
+        } else if (node.data instanceof ComfyModelDef) {
+          const model = node.data
+          const provider = modelToNodeStore.getNodeProvider(model.directory)
+          if (provider) {
+            const pos = comfyApp.clientPosToCanvasPos([
+              loc.clientX - 20,
+              loc.clientY
+            ])
+            const node = comfyApp.addNodeOnGraph(provider.nodeDef, { pos })
+            const widget = node.widgets.find(
+              (widget) => widget.name === provider.key
+            )
+            if (widget) {
+              widget.value = model.name
+            }
+          }
         }
       }
     }
@@ -138,6 +162,8 @@ onMounted(async () => {
   // node search is triggered
   useNodeDefStore().nodeSearchService.endsWithFilterStartSequence('')
 
+  // Non-blocking load of node frequencies
+  useNodeFrequencyStore().loadNodeFrequencies()
   emit('ready')
 })
 

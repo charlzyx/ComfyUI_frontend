@@ -7,8 +7,8 @@ import { ComfyWorkflow } from './workflows'
 export class ChangeTracker {
   static MAX_HISTORY = 50
   #app: ComfyApp
-  undo = []
-  redo = []
+  undoQueue = []
+  redoQueue = []
   activeState = null
   isOurLoad = false
   workflow: ComfyWorkflow | null
@@ -54,12 +54,12 @@ export class ChangeTracker {
       return
     }
     if (!ChangeTracker.graphEqual(this.activeState, currentState)) {
-      this.undo.push(this.activeState)
-      if (this.undo.length > ChangeTracker.MAX_HISTORY) {
-        this.undo.shift()
+      this.undoQueue.push(this.activeState)
+      if (this.undoQueue.length > ChangeTracker.MAX_HISTORY) {
+        this.undoQueue.shift()
       }
       this.activeState = clone(currentState)
-      this.redo.length = 0
+      this.redoQueue.length = 0
       this.workflow.unsaved = true
       api.dispatchEvent(
         new CustomEvent('graphChanged', { detail: this.activeState })
@@ -72,18 +72,29 @@ export class ChangeTracker {
     if (prevState) {
       target.push(this.activeState)
       this.isOurLoad = true
-      await this.app.loadGraphData(prevState, false, false, this.workflow)
+      await this.app.loadGraphData(prevState, false, false, this.workflow, {
+        showMissingModelsDialog: false,
+        showMissingNodesDialog: false
+      })
       this.activeState = prevState
     }
   }
 
+  async undo() {
+    await this.updateState(this.undoQueue, this.redoQueue)
+  }
+
+  async redo() {
+    await this.updateState(this.redoQueue, this.undoQueue)
+  }
+
   async undoRedo(e) {
     if (e.ctrlKey || e.metaKey) {
-      if (e.key === 'y') {
-        this.updateState(this.redo, this.undo)
+      if (e.key === 'y' || e.key == 'Z') {
+        await this.redo()
         return true
       } else if (e.key === 'z') {
-        this.updateState(this.undo, this.redo)
+        await this.undo()
         return true
       }
     }
@@ -201,7 +212,8 @@ export class ChangeTracker {
 
     // Store node outputs
     api.addEventListener('executed', ({ detail }) => {
-      const prompt = app.workflowManager.queuedPrompts[detail.prompt_id]
+      const prompt =
+        app.workflowManager.executionStore.queuedPrompts[detail.prompt_id]
       if (!prompt?.workflow) return
       const nodeOutputs = (prompt.workflow.changeTracker.nodeOutputs ??= {})
       const output = nodeOutputs[detail.node]
@@ -272,4 +284,4 @@ export class ChangeTracker {
   }
 }
 
-const globalTracker = new ChangeTracker({} as ComfyWorkflow)
+export const globalTracker = new ChangeTracker({} as ComfyWorkflow)

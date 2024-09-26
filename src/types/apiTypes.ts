@@ -3,6 +3,7 @@ import { zComfyWorkflow, zNodeId } from './comfyWorkflow'
 import { fromZodError } from 'zod-validation-error'
 import { colorPalettesSchema } from './colorPalette'
 import { LinkReleaseTriggerAction } from './searchBoxTypes'
+import { NodeBadgeMode } from './nodeSource'
 
 const zNodeType = z.string()
 const zQueueIndex = z.number()
@@ -226,13 +227,13 @@ export function validateTaskItem(taskItem: unknown) {
   return result
 }
 
-function inputSpec(
-  spec: [ZodType, ZodType],
+function inputSpec<TType extends ZodType, TSpec extends ZodType>(
+  spec: [TType, TSpec],
   allowUpcast: boolean = true
-): ZodType {
+) {
   const [inputType, inputSpec] = spec
   // e.g. "INT" => ["INT", {}]
-  const upcastTypes: ZodType[] = allowUpcast
+  const upcastTypes = allowUpcast
     ? [inputType.transform((type) => [type, {}])]
     : []
 
@@ -246,7 +247,11 @@ function inputSpec(
 const zBaseInputSpecValue = z
   .object({
     default: z.any().optional(),
-    forceInput: z.boolean().optional()
+    defaultInput: z.boolean().optional(),
+    forceInput: z.boolean().optional(),
+    lazy: z.boolean().optional(),
+    rawLink: z.boolean().optional(),
+    tooltip: z.string().optional()
   })
   .passthrough()
 
@@ -356,6 +361,7 @@ const zComfyNodeDef = z.object({
 })
 
 // `/object_info`
+export type InputSpec = z.infer<typeof zInputSpec>
 export type ComfyInputsSpec = z.infer<typeof zComfyInputsSpec>
 export type ComfyOutputTypesSpec = z.infer<typeof zComfyOutputTypesSpec>
 export type ComfyNodeDef = z.infer<typeof zComfyNodeDef>
@@ -386,6 +392,17 @@ const zPromptResponse = z.object({
     })
     .optional()
 })
+
+const zDeviceStats = z.object({
+  name: z.string(),
+  type: z.string(),
+  index: z.number(),
+  vram_total: z.number(),
+  vram_free: z.number(),
+  torch_vram_total: z.number(),
+  torch_vram_free: z.number()
+})
+
 export const zSystemStats = z.object({
   system: z.object({
     os: z.string(),
@@ -393,19 +410,11 @@ export const zSystemStats = z.object({
     embedded_python: z.boolean(),
     comfyui_version: z.string(),
     pytorch_version: z.string(),
-    argv: z.array(z.string())
+    argv: z.array(z.string()),
+    ram_total: z.number(),
+    ram_free: z.number()
   }),
-  devices: z.array(
-    z.object({
-      name: z.string(),
-      type: z.string(),
-      index: z.number().optional(),
-      vram_total: z.number(),
-      vram_free: z.number(),
-      torch_vram_total: z.number(),
-      torch_vram_free: z.number()
-    })
-  )
+  devices: z.array(zDeviceStats)
 })
 const zUser = z.object({
   storage: z.enum(['server', 'browser']),
@@ -413,7 +422,11 @@ const zUser = z.object({
   users: z.record(z.string(), z.unknown())
 })
 const zUserData = z.array(z.array(z.string(), z.string()))
-
+const zUserDataFullInfo = z.object({
+  path: z.string(),
+  size: z.number(),
+  modified: z.number()
+})
 const zBookmarkCustomization = z.object({
   icon: z.string().optional(),
   color: z.string().optional()
@@ -422,6 +435,10 @@ export type BookmarkCustomization = z.infer<typeof zBookmarkCustomization>
 
 const zLinkReleaseTriggerAction = z.enum(
   Object.values(LinkReleaseTriggerAction) as [string, ...string[]]
+)
+
+const zNodeBadgeMode = z.enum(
+  Object.values(NodeBadgeMode) as [string, ...string[]]
 )
 
 const zSettings = z.record(z.any()).and(
@@ -471,20 +488,22 @@ const zSettings = z.record(z.any()).and(
       'Comfy.PreviewFormat': z.string(),
       'Comfy.PromptFilename': z.boolean(),
       'Comfy.Sidebar.Location': z.enum(['left', 'right']),
-      'Comfy.Sidebar.Size': z.number(),
+      'Comfy.Sidebar.Size': z.enum(['small', 'normal']),
       'Comfy.SwitchUser': z.any(),
       'Comfy.SnapToGrid.GridSize': z.number(),
       'Comfy.TextareaWidget.FontSize': z.number(),
       'Comfy.TextareaWidget.Spellcheck': z.boolean(),
+      'Comfy.UseNewMenu': z.enum(['Disabled', 'Floating']),
       'Comfy.TreeExplorer.ItemPadding': z.number(),
-      'Comfy.UseNewMenu': z.any(),
       'Comfy.Validation.Workflows': z.boolean(),
       'Comfy.Workflow.SortNodeIdOnSave': z.boolean(),
       'Comfy.Queue.ImageFit': z.enum(['contain', 'cover']),
-      'Comfy.Workflow.ModelDownload.AllowedSources': z.array(z.string()),
-      'Comfy.Workflow.ModelDownload.AllowedSuffixes': z.array(z.string()),
+      'Comfy.Workflow.WorkflowTabsPosition': z.enum(['Sidebar', 'Topbar']),
       'Comfy.Node.DoubleClickTitleToEdit': z.boolean(),
-      'Comfy.Window.UnloadConfirmation': z.boolean()
+      'Comfy.Window.UnloadConfirmation': z.boolean(),
+      'Comfy.NodeBadge.NodeSourceBadgeMode': zNodeBadgeMode,
+      'Comfy.NodeBadge.NodeIdBadgeMode': zNodeBadgeMode,
+      'Comfy.NodeBadge.NodeLifeCycleBadgeMode': zNodeBadgeMode
     })
     .optional()
 )
@@ -493,6 +512,8 @@ export type EmbeddingsResponse = z.infer<typeof zEmbeddingsResponse>
 export type ExtensionsResponse = z.infer<typeof zExtensionsResponse>
 export type PromptResponse = z.infer<typeof zPromptResponse>
 export type Settings = z.infer<typeof zSettings>
+export type DeviceStats = z.infer<typeof zDeviceStats>
 export type SystemStats = z.infer<typeof zSystemStats>
 export type User = z.infer<typeof zUser>
 export type UserData = z.infer<typeof zUserData>
+export type UserDataFullInfo = z.infer<typeof zUserDataFullInfo>

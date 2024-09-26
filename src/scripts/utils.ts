@@ -56,14 +56,12 @@ export function applyTextReplacements(app: ComfyApp, value: string): string {
     }
 
     // Find node with matching S&R property name
-    // @ts-expect-error
-    let nodes = app.graph._nodes.filter(
+    let nodes = app.graph.nodes.filter(
       (n) => n.properties?.['Node name for S&R'] === split[0]
     )
     // If we cant, see if there is a node with that title
     if (!nodes.length) {
-      // @ts-expect-error
-      nodes = app.graph._nodes.filter((n) => n.title === split[0])
+      nodes = app.graph.nodes.filter((n) => n.title === split[0])
     }
     if (!nodes.length) {
       console.warn('Unable to find node', split[0])
@@ -155,7 +153,7 @@ export function prop<T>(
   return defaultValue
 }
 
-export function getStorageValue(id) {
+export function getStorageValue(id: string) {
   const clientId = api.clientId ?? api.initialClientId
   return (
     (clientId && sessionStorage.getItem(`${id}:${clientId}`)) ??
@@ -163,7 +161,7 @@ export function getStorageValue(id) {
   )
 }
 
-export function setStorageValue(id, value) {
+export function setStorageValue(id: string, value: string) {
   const clientId = api.clientId ?? api.initialClientId
   if (clientId) {
     sessionStorage.setItem(`${id}:${clientId}`, value)

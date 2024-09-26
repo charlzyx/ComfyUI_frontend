@@ -32,6 +32,16 @@
           v-tooltip="$t('sideToolbar.queueTab.showFlatList')"
         />
         <Button
+          v-if="queueStore.hasPendingTasks"
+          icon="pi pi-stop"
+          severity="danger"
+          text
+          @click="
+            () => commandStore.getCommandFunction('Comfy.ClearPendingTasks')()
+          "
+          v-tooltip.bottom="$t('sideToolbar.queueTab.clearPendingTasks')"
+        />
+        <Button
           icon="pi pi-trash"
           text
           severity="primary"
@@ -100,6 +110,7 @@ import { TaskItemImpl, useQueueStore } from '@/stores/queueStore'
 import { api } from '@/scripts/api'
 import { ComfyNode } from '@/types/comfyWorkflow'
 import { useSettingStore } from '@/stores/settingStore'
+import { useCommandStore } from '@/stores/commandStore'
 import { app } from '@/scripts/app'
 
 const IMAGE_FIT = 'Comfy.Queue.ImageFit'
@@ -107,6 +118,7 @@ const confirm = useConfirm()
 const toast = useToast()
 const queueStore = useQueueStore()
 const settingStore = useSettingStore()
+const commandStore = useCommandStore()
 const { t } = useI18n()
 
 // Expanded view: show all outputs in a flat list.

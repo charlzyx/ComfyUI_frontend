@@ -6,7 +6,10 @@
       :dismissable-mask="dismissable"
       @hide="clearFilters"
       :pt="{
-        root: { class: 'invisible-dialog-root' },
+        root: {
+          class: 'invisible-dialog-root',
+          role: 'search'
+        },
         mask: { class: 'node-search-box-dialog-mask' },
         transition: {
           enterFromClass: 'opacity-0 scale-75',
@@ -31,7 +34,7 @@
 
 <script setup lang="ts">
 import { app } from '@/scripts/app'
-import { computed, onMounted, onUnmounted, ref, watchEffect } from 'vue'
+import { computed, onMounted, onUnmounted, ref, toRaw, watchEffect } from 'vue'
 import NodeSearchBox from './NodeSearchBox.vue'
 import Dialog from 'primevue/dialog'
 import { ConnectingLink } from '@comfyorg/litegraph'
@@ -63,7 +66,9 @@ const addFilter = (filter: FilterAndValue) => {
   nodeFilters.value.push(filter)
 }
 const removeFilter = (filter: FilterAndValue) => {
-  nodeFilters.value = nodeFilters.value.filter((f) => f !== filter)
+  nodeFilters.value = nodeFilters.value.filter(
+    (f) => toRaw(f) !== toRaw(filter)
+  )
 }
 const clearFilters = () => {
   nodeFilters.value = []
@@ -95,7 +100,13 @@ const newSearchBoxEnabled = computed(
 )
 const showSearchBox = (e: LiteGraphCanvasEvent) => {
   if (newSearchBoxEnabled.value) {
-    showNewSearchBox(e)
+    if (e.detail.originalEvent?.pointerType === 'touch') {
+      setTimeout(() => {
+        showNewSearchBox(e)
+      }, 128)
+    } else {
+      showNewSearchBox(e)
+    }
   } else {
     canvasStore.canvas.showSearchBox(e.detail.originalEvent as MouseEvent)
   }
@@ -164,6 +175,15 @@ const canvasEventHandler = (e: LiteGraphCanvasEvent) => {
     showSearchBox(e)
   } else if (e.detail.subType === 'empty-release') {
     handleCanvasEmptyRelease(e)
+  } else if (e.detail.subType === 'group-double-click') {
+    const group = e.detail.group
+    const [x, y] = group.pos
+    // @ts-expect-error LiteGraphCanvasEvent is not typed
+    const relativeY = e.detail.originalEvent.canvasY - y
+    // Show search box if the click is NOT on the title bar
+    if (relativeY > group.titleHeight) {
+      showSearchBox(e)
+    }
   }
 }
 
@@ -206,12 +226,18 @@ onUnmounted(() => {
 
 <style>
 .invisible-dialog-root {
-  width: 30%;
+  width: 60%;
   min-width: 24rem;
   max-width: 48rem;
   border: 0 !important;
   background-color: transparent !important;
   margin-top: 25vh;
+  margin-left: 400px;
+}
+@media all and (max-width: 768px) {
+  .invisible-dialog-root {
+    margin-left: 0px;
+  }
 }
 
 .node-search-box-dialog-mask {
