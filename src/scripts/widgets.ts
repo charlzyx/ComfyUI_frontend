@@ -496,15 +496,20 @@ export const ComfyWidgets: Record<string, ComfyWidgetConstructor> = {
         node.imgs = [img]
         app.graph.setDirtyCanvas(true)
       }
-      let folder_separator = name.lastIndexOf('/')
-      let subfolder = ''
-      if (folder_separator > -1) {
-        subfolder = name.substring(0, folder_separator)
-        name = name.substring(folder_separator + 1)
+      if (name.startsWith('//')) {
+        img.src = name
+        img.crossOrigin = 'Anonymous'
+      } else {
+        let folder_separator = name.lastIndexOf('/')
+        let subfolder = ''
+        if (folder_separator > -1) {
+          subfolder = name.substring(0, folder_separator)
+          name = name.substring(folder_separator + 1)
+        }
+        img.src = api.apiURL(
+          `/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`
+        )
       }
-      img.src = api.apiURL(
-        `/view?filename=${encodeURIComponent(name)}&type=input&subfolder=${subfolder}${app.getPreviewFormatParam()}${app.getRandParam()}`
-      )
       // @ts-expect-error
       node.setSizeForImage?.()
     }

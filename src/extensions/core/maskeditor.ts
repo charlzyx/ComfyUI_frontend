@@ -42,6 +42,7 @@ function loadImage(imagePath) {
     }
 
     image.src = imagePath
+    image.crossOrigin = 'Anonymous'
   })
 }
 
@@ -470,6 +471,7 @@ class MaskEditorDialog extends ComfyDialog {
       self.initializeCanvasPanZoom()
     }
     this.image.src = rgb_url.toString()
+    this.image.crossOrigin = 'Anonymous'
   }
 
   initializeCanvasPanZoom() {
